@@ -1,0 +1,126 @@
+---
+  - hosts: all
+    become: yes
+    handlers:
+    - name: restart yum-cron
+      service: name=yum-cron state=restarted
+
+    - name: restart fail2ban
+      service: name=fail2ban state=restarted
+
+    tasks:
+    - name: Upgrade all packages
+      yum: name=* state=latest
+
+    - name: Setup EPEL repo
+      yum:
+        name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        state: present
+
+    - name: Remove Postfix
+      yum:
+        name: postfix
+        state: absent
+
+    - name: Install yum-cron
+      yum:
+        name: yum-cron
+        state: present
+
+    - name: Start yum-cron service and enable at boot time
+      service:
+        name: yum-cron
+        state: started
+        enabled: yes
+
+    - name: Make sure that firewalld is started and enabled at boot time
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
+
+    - name: Open HTTP in firewalld
+      firewalld: service=http zone=public permanent=true state=enabled immediate=yes
+
+    - name: Open HTTPS in firewalld
+      firewalld: service=https zone=public permanent=true state=enabled immediate=yes
+
+    - name: Copy yum-cron.conf
+      template:
+        src: templates/yum-cron.conf.j2
+        dest: /etc/yum/yum-cron.conf
+        owner: root
+        group: root
+        mode: 0644
+      notify: restart yum-cron
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_distribution_major_version|int == 7
+
+    - name: Disable SELinux
+      selinux:
+        state: disabled
+
+    - name: Install Fail2Ban and dependencies
+      yum: name={{ item }} state=present
+      with_items:
+        - fail2ban
+        - fail2ban-systemd
+
+    - name: Copy jail.local for fail2ban
+      template:
+        src: templates/jail.local.j2
+        dest: /etc/fail2ban/jail.local
+        owner: root
+        group: root
+        mode: 0644
+      notify: restart fail2ban
+
+    - name: Copy sshd.local for fail2ban
+      template:
+        src: templates/sshd.local.j2
+        dest: /etc/fail2ban/jail.d/sshd.local
+        owner: root
+        group: root
+        mode: 0644
+      notify: restart fail2ban
+
+    - name: Install yum utils
+      yum:
+        name: yum-utils
+        state: latest
+
+    - name: Install device-mapper-persistent-data
+      yum:
+        name: device-mapper-persistent-data
+        state: latest
+
+    - name: Install lvm2
+      yum:
+        name: lvm2
+        state: latest
+
+    - name: Add Docker repo
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docer-ce.repo
+
+    - name: Install Docker
+      package:
+        name: docker-ce
+        state: latest
+
+    - name: Start Docker service and enable at boot time
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/1.21.2/docker-compose-Linux-x86_64"
+        dest: "/usr/local/bin/docker-compose"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+
