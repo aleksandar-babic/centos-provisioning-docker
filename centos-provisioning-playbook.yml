@@ -33,6 +33,11 @@
         state: started
         enabled: yes
 
+    - name: Install firewalld
+      yum:
+        name: firewalld
+        state: present
+
     - name: Make sure that firewalld is started and enabled at boot time
       service:
         name: firewalld
