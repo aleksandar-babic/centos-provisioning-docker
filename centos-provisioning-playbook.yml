@@ -1,6 +1,7 @@
 ---
   - hosts: all
     become: yes
+    user: root
     handlers:
     - name: restart yum-cron
       service: name=yum-cron state=restarted
@@ -129,3 +130,13 @@
         group: "root"
         mode: "0755"
 
+    - name: Open ports for Swarm Mode
+      firewalld: port={{ item }} zone=public permanent=true state=enabled immediate=yes
+      with_items:
+        - 2377/tcp
+        - 2377/udp
+        - 7946/tcp
+        - 7946/udp
+        - 4789/udp
+        - 50/tcp
+        - 50/udp
